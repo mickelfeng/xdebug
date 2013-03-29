@@ -434,6 +434,7 @@ void xdebug_var_export(zval **struc, xdebug_str *str, int level, int debug_zval,
 
 		case IS_OBJECT:
 			myht = Z_OBJPROP_PP(struc);
+			zend_class_entry *zce = Z_OBJCE_PP(struc);
 			if (myht->nApplyCount < 1) {
 				char *class_name;
 				zend_uint class_name_len;
@@ -446,6 +447,22 @@ void xdebug_var_export(zval **struc, xdebug_str *str, int level, int debug_zval,
 					options->runtime[level].start_element_nr = 0;
 					options->runtime[level].end_element_nr = options->max_children;
 
+					size_t i;
+					HashPosition hpos;
+					void *p;
+					HashTable * properties_info = &zce->properties_info;
+
+					for(i=0; i<zce->default_static_members_count; i++) {
+						zend_hash_internal_pointer_reset_ex(properties_info, &hpos);
+						while(zend_hash_has_more_elements_ex(properties_info, &hpos) == SUCCESS) {
+							zend_hash_get_current_data_ex(properties_info, &p, &hpos);
+							if (((zend_property_info *)p)->offset == i) {
+								xdebug_str_add(str, ((zend_property_info *)p)->name, 0);
+								xdebug_var_export(&(zce->static_members_table[i]), str, 1, 1, xdebug_var_export_options_from_ini(TSRMLS_C));
+							}
+							zend_hash_move_forward_ex(properties_info, &hpos);
+						}
+					}
 					zend_hash_apply_with_arguments(myht XDEBUG_ZEND_HASH_APPLY_TSRMLS_CC, (apply_func_args_t) xdebug_object_element_export, 5, level, str, debug_zval, options, class_name);
 					/* Remove the ", " at the end of the string */
 					if (myht->nNumOfElements > 0) {
